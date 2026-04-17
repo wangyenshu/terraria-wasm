@@ -56,6 +56,12 @@ To build the frontend for production, run:
 
 ```bash
 make publish
+cd ../..
+cp coi-serviceworker.js dist
+cp template.html dist/index.html
+tar -cvf Content.tar -C "~/.local/share/Steam/steamapps/common/Terraria/game" Content
+bash split.sh
+cp Content.tar.part* dist/
 ```
 
 <!--

@@ -112,9 +112,7 @@ export async function preInit() {
 						let res = await realFetch(defaultUri + idx);
 						idx++;
 						if (!res.body) throw new Error("no body in fetch response");
-						return res.status === 200 && !res.headers.get("content-type")
-							? res.body.getReader()
-							: null;
+						return res.status === 200 ? res.body.getReader() : null;
 					};
 
 					let chunk = await fetchNext();

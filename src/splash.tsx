@@ -125,19 +125,6 @@ const Intro: Component<
 				<Link href="https://velzie.rip/blog/celeste-wasm/">writeup</Link>!
 			</div>
 
-			{!import.meta.env.VITE_SIMPLE_DOWNLOAD ? (
-				<div>
-					You will need to own Terraria to play this. Make sure you either own
-					it on Steam, or have it downloaded and installed on your computer.
-				</div>
-			) : (
-				<div>
-					THIS IS AN UNOFFICIAL DEPLOYMENT OF Terrarium. I (velzie) AM NOT
-					HOSTING THE GAME CONTENT HERE. You can find the official deployment{" "}
-					<Link href="https://terraria.mercurywork.shop">here</Link>
-				</div>
-			)}
-
 			{!import.meta.env.VITE_SIMPLE_DOWNLOAD && PICKERS_UNAVAILABLE ? (
 				<div class="error">
 					Your browser does not support the{" "}
@@ -160,10 +147,6 @@ const Intro: Component<
 				</div>
 			) : null}
 
-			<div>
-				You will need to install Terraria to your browser with one of the
-				following methods:
-			</div>
 			<div class="buttons">
 				{import.meta.env.VITE_SIMPLE_DOWNLOAD ? (
 					<Button
@@ -173,7 +156,7 @@ const Intro: Component<
 						disabled={use(this.starting)}
 					>
 						<Icon icon={iconDownload} />
-						Download Terraria
+						Play Terraria
 					</Button>
 				) : (
 					[
@@ -558,48 +541,91 @@ const SimpleDownload: Component<
 			transform: translateY(15%);
 		}
 	`;
-
 	this.mount = async () => {
 		try {
-			let url = new URL(
+			let baseUrl = new URL(
 				import.meta.env.VITE_SIMPLE_DOWNLOAD_FILE,
 				location.href
 			).href;
-			let file = await realFetch(url);
-			console.log(file);
-			if (file.status != 200) {
-				throw new Error(
-					`Failed to download file: ${file.status} ${file.statusText}`
-				);
+
+			this.status = "Calculating total download size...";
+			
+			let totalSize = 0;
+			let totalParts = 0;
+			while (true) {
+				let res = await realFetch(`${baseUrl}.part${totalParts + 1}`, { method: 'HEAD' });
+				
+				if (res.status === 404 || !res.ok) break; 
+				
+				let contentType = res.headers.get("Content-Type");
+				if (contentType && contentType.includes("text/html")) break;
+				
+				let contentLength = res.headers.get("Content-Length");
+				if (contentLength) {
+					totalSize += parseInt(contentLength);
+				}
+				totalParts++;
 			}
+
+			if (totalParts === 0) {
+				throw new Error(`Could not find ${baseUrl}.part1 (Ensure it is not being served as HTML)`);
+			}
+
+			this.status = ""; 
+
+			let partIndex = 1;
 			let parsedSize = 0;
-			const fileSize = parseInt(file.headers.get("Content-Length")!);
-			const stream = file.body!;
-			const reader = stream.getReader();
 			const self = this;
+
+			const fetchNextPart = async (idx: number) => {
+				if (idx > totalParts) return null;
+				let res = await realFetch(`${baseUrl}.part${idx}`);
+				
+				if (res.status === 404) return null;
+				let contentType = res.headers.get("Content-Type");
+				if (contentType && contentType.includes("text/html")) return null;
+
+				if (!res.ok) throw new Error(`Failed to download part ${idx}: ${res.statusText}`);
+				return res.body ? res.body.getReader() : null;
+			};
+
+			let currentReader = await fetchNextPart(partIndex);
+
 			let progressStream = new ReadableStream({
 				async pull(controller) {
-					const { value, done } = await reader.read();
+					while (currentReader) {
+						const { value, done } = await currentReader.read();
 
-					if (!value || done) {
-						controller.close();
-					} else {
-						controller.enqueue(value);
+						if (value) {
+							controller.enqueue(value);
+							
+							parsedSize += value.byteLength;
+							self.percent = (parsedSize / totalSize) * 100;
+						}
 
-						parsedSize += value.byteLength;
-						self.percent = (parsedSize / fileSize) * 100;
+						if (done) {
+							partIndex++;
+							currentReader = await fetchNextPart(partIndex);
+							if (!currentReader) {
+								controller.close(); 
+								return;
+							}
+						} else {
+							return; 
+						}
 					}
 				},
 			});
 
 			this.extracting = true;
 
-			if (url.endsWith(".gz"))
+			if (baseUrl.endsWith(".gz")) {
 				progressStream = progressStream.pipeThrough(
 					new DecompressionStream("gzip")
 				);
-			await extractTar(progressStream, rootFolder, (type, name) => {
-				console.log(`extracted ${type} ${name}`);
+			}
+
+			await extractTar(progressStream, rootFolder, () => {
 			});
 
 			this.extracting = false;
@@ -611,7 +637,6 @@ const SimpleDownload: Component<
 			console.error(e);
 		}
 	};
-
 	return (
 		<div class="step">
 			<p class="center">Downloading {NAME} from the server</p>

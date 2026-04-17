@@ -468,7 +468,7 @@ export const OpfsExplorer: Component<
 		this.uploading = false;
 	};
 	const downloadArchive = async () => {
-		const dirName = this.components.at(-1) || "terraria-wasm";
+		const dirName = this.components[this.components.length - 1] || "terraria-wasm";
 		const file = await showSaveFilePicker({
 			excludeAcceptAllOption: true,
 			suggestedName: dirName + ".tar",
