@@ -24,6 +24,7 @@ Cross-Origin-Opener-Policy: same-origin
 - node and pnpm
 - Terraria (Linux or Windows build)
 - ilspycmd (SPECIFICALLY VERSION 9.0.0.7889)
+- wat2wasm
   it's recommended to install ilspycmd using the .NET CLI
 
 ```bash
