@@ -112,6 +112,8 @@ export async function preInit() {
 						let res = await realFetch(defaultUri + idx);
 						idx++;
 						if (!res.body) throw new Error("no body in fetch response");
+						let contentType = res.headers.get("content-type");
+						if (contentType && contentType.includes("text/html")) return null;
 						return res.status === 200 ? res.body.getReader() : null;
 					};
 
